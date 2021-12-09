@@ -1,0 +1,355 @@
+#define MAX_SEQ 7 /* should be 2^n - 1 */
+typedef enum { frame_arrival, cksum_err, timeout, network_layer_ready, null_flag } event_type;
+#define MAX_PKT 1024 /* determines packet size in bytes */
+
+typedef unsigned int seq_nr; /* sequence or ack numbers */
+typedef struct { unsigned char data[MAX_PKT]; } packet; /* packet definition */
+typedef enum { data, ack, nak } frame_kind; /* frame_kind definition */
+
+typedef struct { /* frames are transported in this layer */
+frame_kind kind; /* what kind of a frame is it? */
+seq_nr seq; /* sequence number */
+seq_nr ack; /* acknowledgement number */
+packet info; /* the network layer packet */
+} frame;
+
+event_type event;
+int seconds = 0, minutes = 0, hours = 0;
+bool is_timeout = false, is_frame_arrival = false, is_network_layer_ready = false, is_cksum_err = false;
+int n = 0;
+
+/* Wait for an event to happen; return its type in event. */
+void wait_for_event(event_type* event) {
+// random events
+  int n = rand() % 4;
+  switch (n)
+          {
+        case 0:
+       *event = frame_arrival;
+        break;
+        case 1:
+        *event = cksum_err;
+        break;
+        case 2:
+        *event = timeout;
+        break;
+        case 3:
+        *event = network_layer_ready;
+        break;
+        default:
+        break;
+        }
+}
+
+bool all_pkts_sent = false;
+  /* Macro incr is expanded in-line: Increment k. */
+#define incr(k) if (k < 9) k = k + 1; else k = -1
+  /* Macro decr is expanded in-line: Decrement k. */
+#define decr(k) if (k > 0) k = k - 1; else k = 9
+  seq_nr pkt_num_ntod = 0;
+  seq_nr pkt_num_dton = 0;
+  
+  /* Fetch a packet from the network layer for transmission on the channel. */
+void from_network_layer(packet* p) {
+//---------PACKETS TO BE SENT---------------
+packet network_layer_packets[] = { "Maram", "Nabil", "Hagar", "Ahmed", "Mai", "Abozaid",
+"Noran", "Nagdi", "Heba", "Adel" };
+if (pkt_num_ntod != -1) {
+*p = network_layer_packets[pkt_num_ntod];
+incr(pkt_num_ntod);
+}
+}
+
+/* Deliver information from an inbound frame to the network layer. */
+void to_network_layer(packet* p) {
+packet network_layer_packets[30];
+if (pkt_num_dton != -1) {
+network_layer_packets[pkt_num_dton] = *p;
+//----------------
+cout << "\nReceiver's Network layer: " << network_layer_packets[pkt_num_dton].data
+<< endl << endl;
+//----------------
+if (pkt_num_dton == 9)
+all_pkts_sent = true;
+
+
+incr(pkt_num_dton);
+}
+}
+// A function to prepare the frames received by the physical layer at the receiver.
+void ph_lay_frames(frame arr[]) {
+packet network_layer_packets[] = { "Maram", "Nabil", "Hagar", "Ahmed", "Mai", "Abozaid",
+"Noran", "Nagdi", "Heba", "Adel" };
+for (seq_nr j = 0; j < 10; j++) {
+arr[j].info = network_layer_packets[j];
+arr[j].seq = j;
+}
+}
+/* Go get an inbound frame from the physical layer and copy it to r. */
+void from_physical_layer(frame* r) {
+frame fphysical_layer_frames[30];
+ph_lay_frames(fphysical_layer_frames);
+if (frm_num_ptod != -1) {
+*r = fphysical_layer_frames[frm_num_ptod];
+//-------------
+cout << "from_physical_layer frame no: " << r->seq << endl;
+//-------------
+incr(frm_num_ptod);
+}
+}
+
+/* Pass the frame to the physical layer for transmission. */
+void to_physical_layer(frame* s) {
+frame tphysical_layer_frames[30];
+if (frm_num_dtop != -1) {
+tphysical_layer_frames[frm_num_dtop] = *s;
+incr(frm_num_dtop);
+}
+}
+struct node {
+int sq_nr;
+//int ticks;
+int tme = 0;
+bool stop = false;
+node* next = NULL;
+};
+node* head = NULL;
+/* Stop the clock and disable the timeout event. */
+void stop_timer(seq_nr k) {
+node* ptr = head;
+
+if (ptr == NULL)return;
+else {
+while (ptr->sq_nr != k) {
+ptr = ptr->next;
+}
+ptr->stop = true;
+is_timeout = false;
+//event = null_flag;
+}
+}
+/* Start the clock running and enable the timeout event. */
+void start_timer(seq_nr k)
+{
+node* newnode = new node;
+newnode->sq_nr = k;
+//newnode->ticks = 2;
+if (head == NULL) {
+head = newnode;
+}
+
+else {
+node* last = head;
+while (last->next != NULL) last = last->next;
+last->next = newnode;
+}
+int ticks = 2; //
+while (!newnode->stop) {
+for (; newnode->tme < ticks;) { //0..
+Sleep(1);
+newnode->tme = newnode->tme + 1; //1
+}
+is_timeout = true;
+return;
+}
+}
+/* Start an auxiliary timer and enable the ack_timeout event. */
+void start_ack_timer(void) {
+// increment seconds
+seconds++;
+// if seconds reaches 60
+if (seconds == 60)
+{
+// increment minutes
+
+minutes++;
+// if minutes reaches 60
+if (minutes == 60)
+{
+// increment hours
+hours++;
+minutes = 0;
+}
+seconds = 0;
+}
+event = timeout;
+}
+/* Stop the auxiliary timer and disable the ack_timeout event. */
+void stop_ack_timer(void) {
+seconds = 0;
+minutes = 0;
+hours = 0;
+event = null_flag;
+}
+///* Stop the auxiliary timer and disable the ack_timeout event. */
+//void stop_ack_timer(void) {
+//
+//}
+
+/* Allow the network layer to cause a network_layer_ready event. */
+void enable_network_layer(void) {
+is_network_layer_ready = true;
+}
+/* forbid the network layer from causing a network_layer_ready event. */
+void disable_network_layer(void) {
+is_network_layer_ready = false;
+}
+/* Macro inc is expanded in-line: Increment k circularly. */
+#define inc(k) if (k < MAX_SEQ) k = k + 1; else k = 0
+static bool between(seq_nr a, seq_nr b, seq_nr c)
+{
+/* Return true if (a <=b < c circularly; false otherwise. */
+if (((a <= b) && (b < c)) || ((c < a) && (a <= b)) || ((b < c) && (c < a)))
+return(true);
+else
+return(false);
+}
+static void send_data(seq_nr frame_nr, seq_nr frame_expected, packet buffer[])
+{
+/* Construct and send a data frame. */
+frame s; /* scratch variable */
+s.info = buffer[frame_nr]; /* insert packet into frame */
+s.seq = frame_nr; /* insert sequence number into frame */
+s.ack = (frame_expected + MAX_SEQ) % (MAX_SEQ + 1); /* piggyback ack */
+//-------------
+cout << "Sending frame " << frame_nr << " to physical layer, packet: " << s.info.data << endl;
+//cout << "packet being sent: " << s.info.data << endl;
+//-------------
+to_physical_layer(&s); /* transmit the frame */
+//-------------
+cout << "Starting timer for frame " << frame_nr << endl;
+//-------------
+start_timer(frame_nr); /* start the timer running */
+}
+void protocol5(void)
+{
+seq_nr next_frame_to_send; /* MAX_SEQ > 1; used for outbound stream */
+seq_nr ack_expected; /* oldest frame as yet unacknowledged */
+seq_nr frame_expected; /* next frame expected on inbound stream */
+frame r; /* scratch variable */
+packet buffer[MAX_SEQ + 1]; /* buffers for the outbound stream */
+seq_nr nbuffered; /* # output buffers currently in use */
+
+seq_nr i; /* used to index into the buffer array */
+//event_type event;
+//---------------
+seq_nr seqno;
+//----------------
+enable_network_layer(); /* allow network_layer_ready events */
+//---------------
+cout << "Network layer ENABLED" << endl;
+//---------------
+ack_expected = 0; /* next ack expected inbound */
+next_frame_to_send = 0; /* next frame going out */
+frame_expected = 0; /* number of frame expected inbound */
+nbuffered = 0; /* initially no packets are buffered */
+while (!all_pkts_sent) {
+wait_for_event(&event); /* four possibilities: see event_type above */
+switch (event) {
+case network_layer_ready: /* the network layer has a packet to send */
+/* Accept, save, and transmit a new frame. */
+//--------------
+cout << "current event: " << event << endl;
+//--------------
+from_network_layer(&buffer[next_frame_to_send]); /* fetch new packet */
+nbuffered = nbuffered + 1; /* expand the sender's window */
+
+//--------------
+cout << "nbuffered = " << nbuffered << endl;
+//--------------
+send_data(next_frame_to_send, frame_expected, buffer); /* transmit the
+frame */
+inc(next_frame_to_send); /* advance sender's upper window edge */
+break;
+case frame_arrival: /* a data or control frame has arrived */
+//--------------
+cout << "current event: " << event << endl;
+//--------------
+from_physical_layer(&r); /* get incoming frame from physical layer */
+//--------------
+cout << "frame received from physical layer: " << r.info.data << endl;
+cout << "r.seq = " << r.seq << " | frame_expected = " << frame_expected <<
+endl;
+//--------------
+seqno = (r.seq > MAX_SEQ) ? (r.seq % (MAX_SEQ + 1)) : (r.seq);
+//seqno = (frame_expected + MAX_SEQ) % (MAX_SEQ);
+//--------------
+cout << "seqno = " << seqno << " | frame_expected = " << frame_expected <<
+endl;
+//-----BEFORE EDIT: r.seq == frame_expected---------
+if (seqno == frame_expected) {
+/* Frames are accepted only in order. */
+//--------------
+cout << "Right sequence no. | Sending to network layer ..." << endl;
+
+//--------------
+to_network_layer(&r.info); /* pass packet to network layer */
+//--------------
+r.ack = (frame_expected + MAX_SEQ) % (MAX_SEQ + 1);;
+//--------------
+inc(frame_expected); /* advance lower edge of receiver's window */
+}
+else {
+cout << "WRONG sequence no." << endl;
+}
+/* Ack n implies n - 1, n - 2, etc. Check for this. */
+//--------------
+cout << "ack_expected = " << ack_expected << " | r.ack = " << r.ack << " |
+next_frame_to_send = " << next_frame_to_send << endl;
+//--------------
+while (between(ack_expected, r.ack, next_frame_to_send)) {
+/* Handle piggybacked ack. */
+//--------------
+cout << "nbuffered = " << nbuffered << endl;
+//--------------
+
+
+nbuffered = nbuffered - 1; /* one frame fewer buffered */
+//--------------
+cout << "timer stopped - ack: " << ack_expected << endl;
+//--------------
+stop_timer(ack_expected); /* frame arrived intact; stop timer */
+inc(ack_expected); /* contract sender's window */
+//--------------
+//incr(ack_expected);
+//--------------
+}
+break;
+case cksum_err:; /* just ignore bad frames */
+//--------------
+cout << "current event: " << event << " | checksum error ignored" << endl;
+//--------------
+//-------------
+//cout << "checksum error ignored" << endl;
+//-------------
+break;
+case timeout: /* trouble; retransmit all outstanding frames */
+//--------------
+cout << "current event: " << event << endl;
+//--------------
+
+
+next_frame_to_send = ack_expected; /* start retransmitting here */
+//-------------
+cout << "Retransmitting window from frame: " << next_frame_to_send << endl;
+//-------------
+for (i = 1; i <= nbuffered; i++) {
+send_data(next_frame_to_send, frame_expected, buffer); /* resend 1
+frame */
+inc(next_frame_to_send); /* prepare to send the next one */
+}
+}
+if (nbuffered < MAX_SEQ) {
+enable_network_layer();
+//--------------
+cout << "Network layer ENABLED" << endl;
+//--------------
+}
+else {
+disable_network_layer();
+//--------------
+cout << "Network layer DISABLED" << endl;
+//--------------
+}
+}
+}
